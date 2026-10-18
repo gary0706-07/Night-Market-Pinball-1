@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>夜市古早味彈珠台 (Taiwan Night Market Pinball)</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
+    body {
+      background-color: #1a0f07;
+      color: #e8d5b7;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", "Microsoft JhengHei", sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 12px;
+      touch-action: manipulation;
+      overflow-x: hidden;
+    }
+    .container {
+      width: 100%;
+      max-width: 480px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    header {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 12px;
+      background: #2a170b;
+      border: 1px solid #4a2b16;
+      border-radius: 12px;
+      margin-bottom: 8px;
+    }
+    .title {
+      font-weight: 900;
+      font-size: 16px;
+      color: #fef08a;
+      letter-spacing: 1px;
+    }
+    .stats-row {
+      width: 100%;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .stat-card {
+      background: #2b170c;
+      border: 1px solid #543018;
+      border-radius: 10px;
+      padding: 6px;
+      text-align: center;
+    }
+    .stat-label { font-size: 11px; color: #d4aa6a; }
+    .stat-val { font-size: 20px; font-weight: 900; font-family: monospace; color: #fff; }
+    .progress-bar-bg {
+      width: 100%;
+      height: 8px;
+      background: #170a04;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 4px;
+      border: 1px solid #543018;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(to right, #f59e0b, #eab308);
+      width: 0%;
+      transition: width 0.2s ease;
+    }
+    .canvas-wrapper {
+      position: relative;
+      background: #2a170b;
+      border: 4px solid #4a2b16;
+      border-radius: 16px;
+      padding: 6px;
+      box-shadow: 0 15px 35px rgba(0,0,0,0.8);
+      width: 100%;
+      display: flex;
+      justify-content: center;
+    }
+    canvas {
+      display: block;
+      border-radius: 12px;
+      max-width: 100%;
+      height: auto;
+      aspect-ratio: 460 / 740;
+    }
+    .power-gauge {
+      width: 100%;
+      margin: 8px 0;
+    }
+    .power-gauge-bar {
+      height: 14px;
+      background: #170a04;
+      border-radius: 7px;
+      overflow: hidden;
+      border: 1px solid #4a2b16;
+      position: relative;
+    }
+    .power-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(to right, #10b981, #f59e0b, #ef4444);
+    }
+    .btn-launch {
+      width: 100%;
+      padding: 14px;
+      font-size: 18px;
+      font-weight: 900;
+      color: #fff;
+      background: linear-gradient(to bottom, #8a4a20, #542a0e);
+      border: 2px solid #b8763a;
+      border-radius: 14px;
+      box-shadow: 0 5px 0 #2b1406, 0 10px 20px rgba(0,0,0,0.5);
+      cursor: pointer;
+      margin-top: 4px;
+    }
+    .btn-launch:active, .btn-launch.active {
+      background: linear-gradient(to bottom, #dc2626, #991b1b);
+      border-color: #fde047;
+      transform: translateY(3px);
+      box-shadow: 0 2px 0 #2b1406;
+    }
+    .banner {
+      position: fixed;
+      top: 20px;
+      background: linear-gradient(to right, #dc2626, #f59e0b);
+      color: #000;
+      font-weight: 900;
+      padding: 10px 20px;
+      border-radius: 30px;
+      box-shadow: 0 8px 25px rgba(245,158,11,0.7);
+      border: 2px solid #fff;
+      display: none;
+      z-index: 100;
+    }
+    .modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.85);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 99;
+      padding: 16px;
+    }
+    .modal-card {
+      background: #2b170c;
+      border: 2px solid #b8763a;
+      border-radius: 16px;
+      padding: 24px;
+      max-width: 320px;
+      width: 100%;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="banner" id="bonusBanner">🎉 滿 40 分！獎勵 +5 顆彈珠！</div>
+
+  <div class="container">
+    <header>
+      <div class="title">夜市古早味彈珠台</div>
+      <button id="btnMute" style="background:#3d2314;color:#fde047;border:1px solid #543018;border-radius:8px;padding:4px 8px;cursor:pointer;">🔊 音效</button>
+    </header>
+
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-label">累積得分</div>
+        <div class="stat-val" id="valScore">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">剩餘彈珠</div>
+        <div class="stat-val" id="valBalls" style="color:#34d399">10</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">獎勵進度</div>
+        <div class="stat-val" style="font-size:15px;color:#fbbf24;"><span id="valReward">0</span>/40</div>
+        <div class="progress-bar-bg"><div class="progress-bar-fill" id="rewardBar"></div></div>
+      </div>
+    </div>
+
+    <div class="canvas-wrapper">
+      <canvas id="pinballCanvas" width="460" height="740"></canvas>
+    </div>
+
+    <div class="power-gauge">
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:#d4aa6a;margin-bottom:3px;">
+        <span>彈射力道 (0% - 100%)</span>
+        <span id="powerText">等待蓄力</span>
+      </div>
+      <div class="power-gauge-bar">
+        <div class="power-fill" id="powerFill"></div>
+      </div>
+    </div>
+
+    <button id="btnLaunch" class="btn-launch">按住蓄力 · 鬆開彈射</button>
+  </div>
+
+  <div class="modal" id="modalGameOver">
+    <div class="modal-card">
+      <div style="font-size:12px;color:#f59e0b;font-weight:bold;margin-bottom:6px;">★ 遊戲結束 · 最終結算 ★</div>
+      <h2 style="font-size:24px;margin-bottom:12px;color:#fef08a;">恭喜獲得</h2>
+      <div style="font-size:48px;font-weight:900;font-family:monospace;color:#fff;margin-bottom:16px;" id="finalScoreVal">0</div>
+      <button id="btnRestart" style="width:100%;padding:12px;font-size:16px;font-weight:bold;background:#f59e0b;color:#000;border:none;border-radius:10px;cursor:pointer;">再玩一次 (Play Again)</button>
+    </div>
+  </div>
+
+  <script>
+    // --- Web Audio Synthesis ---
+    let audioCtx = null;
+    let isMuted = false;
+    function getAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      return audioCtx;
+    }
+    function playPegHit(pitchFactor) {
+      if (isMuted) return;
+      try {
+        const ctx = getAudio();
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.type = 'sine';
+        const freq = (1100 + Math.random() * 400) * pitchFactor;
+        osc.frequency.setValueAtTime(freq, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(freq * 0.7, ctx.currentTime + 0.05);
+        g.gain.setValueAtTime(0.2, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.06);
+        osc.connect(g); g.connect(ctx.destination);
+        osc.start(); osc.stop(ctx.currentTime + 0.065);
+      } catch(e){}
+    }
+    function playLaunch(power) {
+      if (isMuted) return;
+      try {
+        const ctx = getAudio();
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(140, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(320 + power * 350, ctx.currentTime + 0.16);
+        g.gain.setValueAtTime(0.3, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
+        osc.connect(g); g.connect(ctx.destination);
+        osc.start(); osc.stop(ctx.currentTime + 0.19);
+      } catch(e){}
+    }
+    function playScore() {
+      if (isMuted) return;
+      try {
+        const ctx = getAudio();
+        [523.25, 659.25, 783.99].forEach((freq, idx) => {
+          const osc = ctx.createOscillator();
+          const g = ctx.createGain();
+          osc.type = 'sine';
+          const t = ctx.currentTime + idx * 0.07;
+          osc.frequency.setValueAtTime(freq, t);
+          g.gain.setValueAtTime(0.2, t);
+          g.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+          osc.connect(g); g.connect(ctx.destination);
+          osc.start(t); osc.stop(t + 0.22);
+        });
+      } catch(e){}
+    }
+    function playBonus() {
+      if (isMuted) return;
+      try {
+        const ctx = getAudio();
+        [523.25, 659.25, 783.99, 1046.5].forEach((freq, idx) => {
+          const osc = ctx.createOscillator();
+          const g = ctx.createGain();
+          osc.type = 'triangle';
+          const t = ctx.currentTime + idx * 0.09;
+          osc.frequency.setValueAtTime(freq, t);
+          g.gain.setValueAtTime(0.25, t);
+          g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+          osc.connect(g); g.connect(ctx.destination);
+          osc.start(t); osc.stop(t + 0.32);
+        });
+      } catch(e){}
+    }
+
+    // --- Game Rules & Physics Constants ---
+    const CANVAS_WIDTH = 460;
+    const CANVAS_HEIGHT = 740;
+    const GRAVITY = 0.22;
+    const RESTITUTION = 0.68;
+    const FRICTION = 0.992;
+    const BALL_RADIUS = 7.5;
+    const SLOT_SCORES = [1, 2, 4, 6, 8, 10, 8, 6, 4, 2, 1];
+
+    let score = 0;
+    let remainingBalls = 10;
+    let rewardProgress = 0;
+    let isGameOver = false;
+
+    // Board setup
+    const laneDividerX = 408;
+    const leftBorder = 22;
+    const bottomSlotY = 560;
+    const slotFloorY = 676;
+    const slotWidth = (laneDividerX - leftBorder) / 11;
+
+    const slots = [];
+    for (let i = 0; i < 11; i++) {
+      slots.push({
+        x1: leftBorder + i * slotWidth,
+        x2: leftBorder + (i + 1) * slotWidth,
+        score: SLOT_SCORES[i],
+        glow: 0
+      });
+    }
+
+    const pegs = [];
+    const rows = [
+      { y: 175, count: 7, offset: 0.5 },
+      { y: 210, count: 8, offset: 0.0 },
+      { y: 245, count: 9, offset: 0.5 },
+      { y: 280, count: 8, offset: 0.0 },
+      { y: 315, count: 9, offset: 0.5 },
+      { y: 350, count: 10, offset: 0.0 },
+      { y: 385, count: 9, offset: 0.5 },
+      { y: 420, count: 10, offset: 0.0 },
+      { y: 455, count: 9, offset: 0.5 },
+      { y: 490, count: 10, offset: 0.0 },
+    ];
+    rows.forEach(r => {
+      const step = (laneDividerX - leftBorder - 56) / (r.count + 1);
+      for (let c = 1; c <= r.count; c++) {
+        pegs.push({
+          x: leftBorder + 28 + (c - 0.5 + r.offset * 0.5) * step,
+          y: r.y,
+          radius: 3.5,
+          hitGlow: 0
+        });
+      }
+    });
+    for (let i = 0; i < 11; i++) {
+      const x = leftBorder + (i + 1) * slotWidth;
+      if (x < laneDividerX - 5) pegs.push({ x, y: bottomSlotY - 8, radius: 3.2, hitGlow: 0 });
+    }
+
+    let balls = [];
+    let sparks = [];
+    let popups = [];
+
+    function spawnBall() {
+      balls.push({
+        x: (laneDividerX + 444) / 2,
+        y: 645,
+        vx: 0,
+        vy: 0,
+        radius: BALL_RADIUS,
+        state: 'LANE',
+        slotIndex: null
+      });
+    }
+    spawnBall();
+
+    // --- Charging Loop (0% -> 100% -> 0% ping pong) ---
+    let isCharging = false;
+    let chargeRatio = 0;
+    let chargeDir = 1;
+
+    function startCharge() {
+      if (isGameOver) return;
+      const waiting = balls.find(b => b.state === 'LANE');
+      if (!waiting && remainingBalls <= 0) return;
+      if (!waiting && remainingBalls > 0) {
+        spawnBall();
+      }
+      isCharging = true;
+      document.getElementById('btnLaunch').classList.add('active');
+    }
+
+    function endCharge() {
+      if (!isCharging) return;
+      isCharging = false;
+      document.getElementById('btnLaunch').classList.remove('active');
+
+      const waiting = balls.find(b => b.state === 'LANE');
+      if (waiting) {
+        const power = Math.max(0.12, chargeRatio);
+        waiting.vy = -(18.5 + power * 14.5);
+        waiting.vx = (Math.random() - 0.5) * 0.6;
+        waiting.state = 'PLAYFIELD';
+        remainingBalls--;
+        playLaunch(power);
+        updateUI();
+
+        // If still have balls left, queue next ball
+        if (remainingBalls > 0) {
+          setTimeout(() => spawnBall(), 600);
+        }
+      }
+      chargeRatio = 0;
+      updatePowerUI();
+    }
+
+    const btnLaunch = document.getElementById('btnLaunch');
+    btnLaunch.addEventListener('mousedown', startCharge);
+    window.addEventListener('mouseup', endCharge);
+    btnLaunch.addEventListener('touchstart', (e) => { e.preventDefault(); startCharge(); });
+    window.addEventListener('touchend', (e) => { endCharge(); });
+    window.addEventListener('keydown', (e) => { if (e.code === 'Space' && !isCharging) startCharge(); });
+    window.addEventListener('keyup', (e) => { if (e.code === 'Space') endCharge(); });
+
+    document.getElementById('btnMute').addEventListener('click', () => {
+      isMuted = !isMuted;
+      document.getElementById('btnMute').textContent = isMuted ? '🔇 靜音' : '🔊 音效';
+    });
+
+    document.getElementById('btnRestart').addEventListener('click', () => {
+      document.getElementById('modalGameOver').style.display = 'none';
+      score = 0;
+      remainingBalls = 10;
+      rewardProgress = 0;
+      isGameOver = false;
+      balls = [];
+      spawnBall();
+      updateUI();
+    });
+
+    function updateUI() {
+      document.getElementById('valScore').textContent = score;
+      document.getElementById('valBalls').textContent = remainingBalls;
+      document.getElementById('valReward').textContent = rewardProgress;
+      document.getElementById('rewardBar').style.width = ((rewardProgress / 40) * 100) + '%';
+    }
+
+    function updatePowerUI() {
+      const pct = Math.round(chargeRatio * 100);
+      document.getElementById('powerFill').style.width = pct + '%';
+      document.getElementById('powerText').textContent = isCharging ? (pct + '%') : '等待蓄力';
+    }
+
+    // --- Physics & Canvas Loop ---
+    const canvas = document.getElementById('pinballCanvas');
+    const ctx = canvas.getContext('2d');
+
+    function animate() {
+      if (isCharging) {
+        chargeRatio += 0.025 * chargeDir;
+        if (chargeRatio >= 1.0) { chargeRatio = 1.0; chargeDir = -1; }
+        else if (chargeRatio <= 0.0) { chargeRatio = 0.0; chargeDir = 1; }
+        updatePowerUI();
+      }
+
+      // Physics update
+      // Sparks
+      for (let i = sparks.length - 1; i >= 0; i--) {
+        const s = sparks[i];
+        s.x += s.vx; s.y += s.vy; s.vy += 0.08; s.alpha -= 0.05;
+        if (s.alpha <= 0) sparks.splice(i, 1);
+      }
+      // Popups
+      for (let i = popups.length - 1; i >= 0; i--) {
+        const p = popups[i];
+        p.y -= 1.1; p.life -= 0.025;
+        if (p.life <= 0) popups.splice(i, 1);
+      }
+      pegs.forEach(p => { if (p.hitGlow > 0) p.hitGlow -= 0.05; });
+      slots.forEach(s => { if (s.glow > 0) s.glow -= 0.035; });
+
+      balls.forEach(b => {
+        if (b.state === 'LANE') return;
+        if (b.state === 'SLOTTED') {
+          b.vx *= 0.8;
+          b.vy = Math.min(b.vy + GRAVITY, 2.0);
+          b.x += b.vx; b.y += b.vy;
+          if (b.y >= slotFloorY - b.radius) { b.y = slotFloorY - b.radius; b.vy = 0; b.vx = 0; }
+          return;
+        }
+
+        b.vy += GRAVITY;
+        b.vx *= FRICTION;
+        b.vy *= FRICTION;
+        b.x += b.vx;
+        b.y += b.vy;
+
+        // Arch collision
+        const archX = 233, archY = 190, r = 211;
+        if (b.y < archY) {
+          const dx = b.x - archX, dy = b.y - archY, dist = Math.hypot(dx, dy);
+          if (dist + b.radius > r) {
+            const nx = dx / dist, ny = dy / dist;
+            b.x = archX + nx * (r - b.radius);
+            b.y = archY + ny * (r - b.radius);
+            const dot = b.vx * nx + b.vy * ny;
+            if (dot > 0) {
+              b.vx = (b.vx - 2 * dot * nx) * RESTITUTION;
+              b.vy = (b.vy - 2 * dot * ny) * RESTITUTION;
+            }
+          }
+        }
+        if (b.x > laneDividerX && b.y < 160) b.vx -= 0.65;
+
+        // Peg collisions
+        pegs.forEach(p => {
+          const dx = b.x - p.x, dy = b.y - p.y;
+          const minDist = b.radius + p.radius;
+          if (dx * dx + dy * dy < minDist * minDist) {
+            const dist = Math.hypot(dx, dy) || 1;
+            const nx = dx / dist, ny = dy / dist;
+            b.x = p.x + nx * (minDist + 0.5);
+            b.y = p.y + ny * (minDist + 0.5);
+            const dot = b.vx * nx + b.vy * ny;
+            if (dot < 0) {
+              b.vx = (b.vx - (1 + RESTITUTION) * dot * nx) + (Math.random() - 0.5) * 0.16;
+              b.vy = (b.vy - (1 + RESTITUTION) * dot * ny);
+              p.hitGlow = 1.0;
+              playPegHit(1.0 - (p.y - 170) / 360);
+              for (let k = 0; k < 4; k++) {
+                sparks.push({ x: p.x, y: p.y, vx: (Math.random() - 0.5) * 3, vy: (Math.random() - 0.5) * 3, alpha: 1.0 });
+              }
+            }
+          }
+        });
+
+        // Left / Right / Lane walls
+        if (b.x - b.radius < leftBorder && b.y > 180) { b.x = leftBorder + b.radius; b.vx = Math.abs(b.vx) * RESTITUTION; }
+        if (b.x + b.radius > 444 && b.y > 180) { b.x = 444 - b.radius; b.vx = -Math.abs(b.vx) * RESTITUTION; }
+        if (b.y > 180 && b.y < bottomSlotY) {
+          if (b.x < laneDividerX && b.x + b.radius > laneDividerX) { b.x = laneDividerX - b.radius; b.vx = -Math.abs(b.vx) * RESTITUTION; }
+          if (b.x > laneDividerX && b.x - b.radius < laneDividerX) { b.x = laneDividerX + b.radius; b.vx = Math.abs(b.vx) * RESTITUTION; }
+        }
+
+        // Slot entry
+        if (b.y >= bottomSlotY + 12) {
+          for (let sIdx = 0; sIdx < slots.length; sIdx++) {
+            const slot = slots[sIdx];
+            if (b.x >= slot.x1 && b.x < slot.x2) {
+              b.state = 'SLOTTED';
+              b.slotIndex = sIdx;
+              slot.glow = 1.0;
+              score += slot.score;
+              rewardProgress += slot.score;
+              popups.push({ x: (slot.x1 + slot.x2) / 2, y: bottomSlotY - 14, score: slot.score, life: 1.0 });
+              playScore();
+
+              // Check 40-point bonus
+              if (rewardProgress >= 40) {
+                rewardProgress -= 40;
+                remainingBalls += 5;
+                playBonus();
+                const banner = document.getElementById('bonusBanner');
+                banner.style.display = 'block';
+                setTimeout(() => { banner.style.display = 'none'; }, 3000);
+              }
+              updateUI();
+              break;
+            }
+          }
+        }
+      });
+
+      // Check Game Over condition: remainingBalls === 0 and all balls slotted
+      if (remainingBalls === 0 && !isGameOver) {
+        const activeBalls = balls.filter(b => b.state === 'PLAYFIELD' || b.state === 'LANE');
+        if (activeBalls.length === 0 && balls.length > 0) {
+          isGameOver = true;
+          document.getElementById('finalScoreVal').textContent = score;
+          document.getElementById('modalGameOver').style.display = 'flex';
+        }
+      }
+
+      // Draw Canvas
+      ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+      // Playfield wood
+      ctx.fillStyle = '#d8ab74';
+      ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+      ctx.fillStyle = 'rgba(74, 38, 12, 0.2)';
+      ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+      // Rails
+      ctx.strokeStyle = '#61381c'; ctx.lineWidth = 10;
+      ctx.beginPath(); ctx.arc(233, 190, 211, Math.PI, 0); ctx.stroke();
+      ctx.fillStyle = '#784420';
+      ctx.fillRect(laneDividerX - 2, 175, 4, 500);
+
+      // Slots
+      slots.forEach((s, idx) => {
+        ctx.fillStyle = s.glow > 0.05 ? 'rgba(254, 240, 138, 0.4)' : (idx % 2 === 0 ? 'rgba(45, 22, 10, 0.4)' : 'rgba(30, 15, 6, 0.5)');
+        ctx.fillRect(s.x1, bottomSlotY, s.x2 - s.x1, slotFloorY - bottomSlotY);
+        ctx.fillStyle = '#45220c';
+        ctx.fillRect(s.x1 - 1, bottomSlotY, 2, slotFloorY - bottomSlotY);
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 12px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(s.score, (s.x1 + s.x2) / 2, slotFloorY - 14);
+      });
+      ctx.fillRect(laneDividerX - 1, bottomSlotY, 2, slotFloorY - bottomSlotY);
+
+      // Pegs
+      pegs.forEach(p => {
+        ctx.fillStyle = p.hitGlow > 0.2 ? '#fef08a' : '#ca8a04';
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2); ctx.fill();
+      });
+
+      // Spring plunger
+      const pullY = chargeRatio * 35;
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillRect((laneDividerX + 444) / 2 - 12, 665 + pullY, 24, 10);
+
+      // Balls
+      balls.forEach(b => {
+        ctx.fillStyle = '#cbd5e1';
+        ctx.beginPath(); ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath(); ctx.arc(b.x - 2, b.y - 2, 2.5, 0, Math.PI * 2); ctx.fill();
+      });
+
+      // Sparks
+      sparks.forEach(s => {
+        ctx.fillStyle = 'rgba(251, 191, 36, ' + s.alpha + ')';
+        ctx.beginPath(); ctx.arc(s.x, s.y, 2, 0, Math.PI * 2); ctx.fill();
+      });
+
+      // Popups
+      popups.forEach(p => {
+        ctx.fillStyle = 'rgba(255, 255, 255, ' + p.life + ')';
+        ctx.font = 'bold 14px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('+' + p.score, p.x, p.y);
+      });
+
+      requestAnimationFrame(animate);
+    }
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>
